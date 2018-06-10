@@ -1,0 +1,230 @@
+---
+title: 'Shiny: What, Why, and Examples'
+author: "Andy Merlino"
+date: "4/17/2018"
+runtime: shiny
+output: 
+  ioslides_presentation:
+    widescreen: true
+    logo: img/tychobra-logo-blue.png
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+## Clara - Day 1
+
+```{r, out.width="40%", fig.align="center"}
+knitr::include_graphics("img/clara-day-1.jpg")
+```
+
+## Clara - Day 8
+
+```{r, out.width="40%", fig.align="center"}
+knitr::include_graphics("img/clara-day-8.jpg")
+```
+
+## Shiny: what and why
+
+- R package for creating web apps with R
+- Tool to Communicate your R analysis
+- Interact with and explore your data
+- State of the art data science: use all of R's packages
+- Leverage the web's javascript charting and visualization libraries
+
+
+## Shiny: R (xgboost) + Web (highcharts)
+
+```{r xgboost, message = FALSE}
+dat <- readRDS("data/claims_sim_dat.RDS")
+
+#preds <- readRDS("models/claims_payments_1_2.RDS")
+library(highcharter)
+fluidPage(
+  fluidRow(
+    column(
+      width = 12,
+      selectInput(
+        "claim_num",
+        "Claim Numbers",
+        choices = unique(dat$claim_num),
+        selected = "345499"
+      )
+    )
+  ),
+  fluidRow(
+    column(
+      width = 12,
+      renderHighchart({
+        
+        sel_sim <- dat[dat$claim_num == input$claim_num, ]
+        
+        average_paid_total <- round(mean(sel_sim$paid_total), 0)
+        
+        hchart(
+          sel_sim$paid_total,
+          breaks = 30
+        ) %>%
+          hc_title(text = paste0("Payment Simulation for Claim ", input$claim_num)) %>%
+          hc_subtitle(text = "Predicted Distribution of Payments between Age 1 and 2") %>%
+          hc_exporting(
+            enabled = TRUE,
+            buttons = tychobratools::hc_btn_options()
+          ) %>%
+          hc_legend(enabled = FALSE) %>%
+          hc_xAxis(
+            title = list(text = "Predicted Distribution of Payments"),
+            plotLines = list(
+              list(
+                label = list(
+                  text = paste0("Prediction =", format(average_paid_total, big.mark = ","))
+                ),
+                color = "#00FF00",
+                width = 2,
+                value = average_paid_total,
+                zIndex = 5
+              )
+            ),
+            floor = -10,
+            minRange = 100
+          ) %>%
+          hc_yAxis(
+            title = list(text = "Number of Simulated Observations")
+          )
+      })
+    )
+  )
+)
+```
+
+## Shiny: Deep Learning with `keras`
+
+```{r keras, message = FALSE}
+library(keras)
+
+x_test <- readRDS("data/digits_test_dat.RDS")
+model <- load_model_hdf5("models/digit_recognition_nn_fit.hdf5")
+
+test_img <- reactive({
+  input$image_button
+  
+  random_image_row <- sample(1:nrow(x_test), 1, replace = TRUE)
+  
+  x_test[random_image_row, , drop = FALSE]
+})
+
+probs <- reactive({
+  model %>%
+    predict_proba(x = test_img()) %>%
+    round(4)  
+})
+
+library(DT)
+fluidRow(
+  column(
+    width = 6,
+    fluidRow(
+      column(
+        width = 1
+      ),
+      column(
+        width = 10,
+        actionButton(
+          "image_button",
+          "New Digit From Test Set",
+          width = '100%',
+          class = 'btn-primary'
+        )
+      )
+    ),
+    fluidRow(
+      column(
+        width = 12,
+        renderPlot({
+          test_num_view <- matrix(test_img(), ncol = 28, byrow = TRUE)
+          # transpose and flip for `image()`
+          test_num_view <- apply(test_num_view, 2, rev) %>% t()
+          test_num_view <- round(test_num_view * 255, 0)
+          image(test_num_view, axes = FALSE, col = grey(seq(1, 0, length = 256)))
+        })
+      )
+    )
+  ),
+  column(
+    width = 6,
+    fluidRow(
+      column(
+        width = 12,
+        DT::renderDataTable({
+          dat <- data.frame(
+            Digit = 0:9,
+            Prediction = probs()[1, ] 
+          )
+  
+          DT::datatable(
+            dat,
+            rownames = FALSE,
+        colnames = c("Digit", "Predicted Probability"),
+        class = "compact",
+        options = list(
+          dom = "t",
+          ordering = FALSE,
+          columnDefs = list(
+            list(targets = 0:1, className = "dt-center")
+          )
+        )
+      ) %>%
+        DT::formatPercentage(
+          columns = 2,
+          digits = 2
+        ) %>%
+        DT::formatStyle(
+          columns = 2,
+          target = "row",
+          backgroundColor = DT::styleEqual(max(dat$Prediction), "#ccc")
+        )
+    })
+      )
+    )
+  )
+)
+```
+
+## Shiny: what and why - developer perspective
+
+- Simple
+- Flexible
+- Fast feedback loop
+  - with yourself
+  - with others
+
+## Shiny: simple
+
+```{r, echo = TRUE}
+library(shiny)
+
+ui <- fluidPage(
+  textInput("text_input", "Text Input", value = "Hello"),
+  h1(textOutput("text_out"))
+)
+
+server <- function(input, output) {
+  output$text_out <- renderText({input$text_input})
+}
+  
+shinyApp(ui, server)
+```
+
+## Example Shiny Applications
+
+[Claims MGMT](https://tychobra.shinyapps.io/claims-mgmt_ea0a_1517610852632/)
+
+[WC PM](https://tychobra.shinyapps.io/wc-pm-dashboard/)
+
+
+## Additional Resources
+
+Example apps with code and video descriptions on my website: https://www.tychobra.com/shiny/
+
+Official Shiny website: https://shiny.rstudio.com/
